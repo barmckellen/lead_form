@@ -55,16 +55,18 @@ async function supabaseRequest(method, endpoint, body = null, params = {}) {
     const queryString = new URLSearchParams(params).toString();
     const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? '?' + queryString : ''}`;
 
-    const options = {
-        method,
-        headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': method === 'POST' ? 'return=representation' : '',
-            'Accept-Profile': SUPABASE_SCHEMA
-        }
+    const headers = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept-Profile': SUPABASE_SCHEMA
     };
+
+    if (method === 'POST') {
+        headers['Prefer'] = 'return=representation';
+    }
+
+    const options = { method, headers };
 
     if (body) options.body = JSON.stringify(body);
 
