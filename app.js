@@ -52,14 +52,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ============================================
 async function supabaseRequest(method, endpoint, body = null, params = {}) {
     if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Missing Supabase config — check Cloudflare Worker env vars');
+    
     const queryString = new URLSearchParams(params).toString();
-    const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? '?' + queryString : ''}`;
+    
+    // CRITICAL FIX: Prefix endpoint with schema
+    const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_SCHEMA}.${endpoint}${queryString ? '?' + queryString : ''}`;
 
     const headers = {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Accept-Profile': SUPABASE_SCHEMA
+        'Content-Type': 'application/json'
+        // Remove 'Accept-Profile' — schema is now in URL
     };
 
     if (method === 'POST') {
@@ -67,13 +70,12 @@ async function supabaseRequest(method, endpoint, body = null, params = {}) {
     }
 
     const options = { method, headers };
-
     if (body) options.body = JSON.stringify(body);
 
     const res = await fetch(url, options);
     if (!res.ok) {
         const err = await res.text();
-        throw new Error(`Supabase ${method} ${endpoint}: ${res.status} — ${err}`);
+        throw new Error(`Supabase ${method} ${SUPABASE_SCHEMA}.${endpoint}: ${res.status} — ${err}`);
     }
     return res.json();
 }
