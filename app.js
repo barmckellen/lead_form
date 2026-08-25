@@ -394,16 +394,24 @@ async function handleSubmit(e) {
             || document.getElementById('projectSearch').value.trim();
 
         const profession = document.getElementById('profession').value.trim();
-        if (!categoryName) throw new Error('Category is required');
         if (!projectName) throw new Error('Project is required');
+
+        // Category is only required when creating a new project
+        const isNewProject = !projectIdVal;
+
+        if (isNewProject && !categoryName) {
+            throw new Error('Category is required when creating a new project');
+        }
+
         if (!profession) throw new Error('Profession / Niche is required');
 
         let categoryId = categoryIdVal ? parseInt(categoryIdVal) : null;
 
-        if (!categoryId) {
+        if (!categoryId && categoryName) {
             const newCat = await post('categories', { name: categoryName });
             categoryId = newCat[0].id;
             categories.push(newCat[0]);
+
             searchQueries = await get('search_queries', {
                 select: 'id,category_id,search_engine,target_platform,country'
             });
