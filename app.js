@@ -59,7 +59,8 @@ async function supabaseRequest(method, endpoint, body = null, params = {}) {
             'apikey': SUPABASE_KEY,
             'Authorization': `Bearer ${SUPABASE_KEY}`,
             'Content-Type': 'application/json',
-            'Prefer': method === 'POST' ? 'return=representation' : ''
+            'Prefer': method === 'POST' ? 'return=representation' : '',
+            'Accept-Profile': 'leads'
         }
     };
 
