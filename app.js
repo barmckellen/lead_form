@@ -322,17 +322,26 @@ function setupEventListeners() {
 // ============================================
 // QUERY BUILDER
 // ============================================
+const EMAIL_PROVIDERS = [
+    '"@gmail.com"',
+    '"@yahoo.com"',
+    '"hotmail.com"',
+    '"@outlook.com"',
+    '"@aol.com"',
+    '"@icloud.com"'
+];
+
 function buildQuery() {
     const parts = [];
     const prof = document.getElementById('profession').value.trim();
     const country = document.getElementById('country').value.trim();
     const site = document.getElementById('targetPlatform').value.trim();
 
-    if (prof) parts.push(prof);
-    if (country) parts.push(country);
+    if (prof) parts.push(`"${prof}"`);
+    if (country) parts.push(`"${country}"`);
     if (site) parts.push(`site:${site}`);
 
-    return parts.join(' ');
+    return parts.join(' ') + ' ' + EMAIL_PROVIDERS.join(' OR ');
 }
 
 function updateQueryPreview() {
@@ -364,8 +373,10 @@ async function handleSubmit(e) {
         const projectName = document.getElementById('newProjectName').value.trim()
             || document.getElementById('projectSearch').value.trim();
 
+        const profession = document.getElementById('profession').value.trim();
         if (!categoryName) throw new Error('Category is required');
         if (!projectName) throw new Error('Project is required');
+        if (!profession) throw new Error('Profession / Niche is required');
 
         let categoryId = categoryIdVal ? parseInt(categoryIdVal) : null;
 
@@ -389,7 +400,6 @@ async function handleSubmit(e) {
             projects.push(newProj[0]);
         }
 
-        const profession = document.getElementById('profession').value.trim() || null;
         const targetPlatform = document.getElementById('targetPlatform').value.trim() || null;
         const country = document.getElementById('country').value.trim() || null;
         const searchEngine = document.getElementById('searchEngine').value;
