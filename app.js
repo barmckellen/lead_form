@@ -3,6 +3,7 @@
 // ============================================
 let SUPABASE_URL = '';
 let SUPABASE_KEY = '';
+let SUPABASE_SCHEMA = 'leads';
 let N8N_WEBHOOK_URL = '';
 
 async function loadConfig() {
@@ -10,6 +11,7 @@ async function loadConfig() {
     const cfg = await res.json();
     SUPABASE_URL = cfg.SUPABASE_URL || '';
     SUPABASE_KEY = cfg.SUPABASE_KEY || '';
+    SUPABASE_SCHEMA = cfg.SUPABASE_SCHEMA || 'leads';
     N8N_WEBHOOK_URL = cfg.N8N_WEBHOOK_URL || '';
 }
 
@@ -60,7 +62,7 @@ async function supabaseRequest(method, endpoint, body = null, params = {}) {
             'Authorization': `Bearer ${SUPABASE_KEY}`,
             'Content-Type': 'application/json',
             'Prefer': method === 'POST' ? 'return=representation' : '',
-            'Accept-Profile': 'leads'
+            'Accept-Profile': SUPABASE_SCHEMA
         }
     };
 
