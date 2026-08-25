@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Research Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header-row">
+            <h1>Lead Research Generator</h1>
+            <div id="dbStatus" class="db-status connecting">
+                <span class="db-dot"></span> Connecting to DB...
+            </div>
+        </div>
+
+        <form id="researchForm">
+            <!-- PROJECT SECTION -->
+            <div class="section">
+                <h2>Project</h2>
+
+                <div class="field-group">
+                    <label>Project <span class="required">*</span></label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="projectSearch" placeholder="Search existing or type new..." autocomplete="off">
+                        <div id="projectDropdown" class="dropdown hidden"></div>
+                    </div>
+                    <input type="hidden" id="projectId">
+                    <button type="button" class="btn-small" id="btnNewProject">+ New Project</button>
+                </div>
+
+                <div id="newProjectFields" class="hidden">
+                    <div class="field-group">
+                        <label>New Project Name <span class="required">*</span></label>
+                        <input type="text" id="newProjectName" placeholder="e.g. BCH Campaign">
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Category <span class="required">*</span></label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="categorySearch" placeholder="Search existing or type new..." autocomplete="off">
+                        <div id="categoryDropdown" class="dropdown hidden"></div>
+                    </div>
+                    <input type="hidden" id="categoryId">
+                </div>
+            </div>
+
+            <!-- QUERY SECTION -->
+            <div class="section">
+                <h2>Search Parameters</h2>
+
+                <div class="field-group">
+                    <label>Profession / Niche</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="profession" placeholder="Search categories or type new..." autocomplete="off">
+                        <div id="professionDropdown" class="dropdown hidden"></div>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Target Website</label>
+                    <input type="text" id="targetPlatform" placeholder="e.g. instagram.com, linkedin.com" value="instagram.com">
+                </div>
+
+                <div class="field-group">
+                    <label>Country / Region</label>
+                    <input type="text" id="country" placeholder="e.g. United States, Texas, Paris">
+                </div>
+
+                <div class="field-group">
+                    <label>Search Engine</label>
+                    <input type="text" id="searchEngine" placeholder="e.g. google.com" value="google.com">
+                </div> 
+
+                <div class="field-group">
+                    <label>Target Results (emails)</label>
+                    <input type="number" id="targetResults" value="50" min="1" max="500">
+                </div>
+            </div>
+
+            <!-- LIVE PREVIEW -->
+            <div class="section preview-section">
+                <h2>Live Search Query</h2>
+                <div id="queryPreview" class="query-box">Start typing to build your query...</div>
+                <button type="button" class="btn-secondary" id="btnTestQuery">Test in Browser</button>
+            </div>
+
+            <!-- SUBMIT -->
+            <div class="actions">
+                <button type="submit" class="btn-primary" id="btnSubmit">
+                    <span class="btn-text">Start Research</span>
+                    <span class="spinner hidden"></span>
+                </button>
+            </div>
+
+            <div id="statusMessage" class="status hidden"></div>
+        </form>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
