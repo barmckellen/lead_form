@@ -51,37 +51,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 // SUPABASE REST API
 // ============================================
 async function supabaseRequest(method, endpoint, body = null, params = {}) {
-    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Missing Supabase config — check Cloudflare Worker env vars');
-    
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+        throw new Error('Missing Supabase config — check Cloudflare Worker env vars');
+    }
+
     const queryString = new URLSearchParams(params).toString();
-    
-    // CRITICAL FIX: Prefix endpoint with schema
-    const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_SCHEMA}.${endpoint}${queryString ? '?' + queryString : ''}`;
+    const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? '?' + queryString : ''}`;
 
     const headers = {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'Content-Type': 'application/json'
-        // Remove 'Accept-Profile' — schema is now in URL
     };
+
+    // Tell PostgREST which schema to use
+    if (method === 'GET') {
+        headers['Accept-Profile'] = SUPABASE_SCHEMA;
+    } else {
+        headers['Content-Profile'] = SUPABASE_SCHEMA;
+    }
 
     if (method === 'POST') {
         headers['Prefer'] = 'return=representation';
     }
 
     const options = { method, headers };
-    if (body) options.body = JSON.stringify(body);
+
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
 
     const res = await fetch(url, options);
+
     if (!res.ok) {
         const err = await res.text();
-        throw new Error(`Supabase ${method} ${SUPABASE_SCHEMA}.${endpoint}: ${res.status} — ${err}`);
+        throw new Error(
+            `Supabase ${method} ${endpoint}: ${res.status} — ${err}`
+        );
     }
+
     return res.json();
 }
 
-const get = (endpoint, params) => supabaseRequest('GET', endpoint, null, params);
-const post = (endpoint, body) => supabaseRequest('POST', endpoint, body);
+const get = (endpoint, params) =>
+    supabaseRequest('GET', endpoint, null, params);
+
+const post = (endpoint, body) =>
+    supabaseRequest('POST', endpoint, body);
 
 // ============================================
 // LOAD DATA (returns true/false for status)
