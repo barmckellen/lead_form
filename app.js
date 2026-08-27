@@ -386,6 +386,24 @@ async function handleSubmit(e) {
     spinner.classList.remove('hidden');
     hideStatus();
 
+    const startTime = Date.now();
+
+    const timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+
+        const timeText =
+            `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+
+        showStatus(
+            `Research running...<br>
+         <strong>Elapsed time:</strong> ${timeText}`,
+            'success'
+        );
+    }, 1000);
+
     try {
         const categoryIdVal = document.getElementById('categoryId').value;
         const categoryName = document.getElementById('categorySearch').value.trim();
@@ -511,6 +529,8 @@ async function handleSubmit(e) {
         console.error('Submit error:', err);
         showStatus(`Error: ${esc(err.message)}`, 'error');
     } finally {
+        clearInterval(timerInterval);
+
         btn.disabled = false;
         btnText.textContent = 'Start Research';
         spinner.classList.add('hidden');
