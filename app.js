@@ -620,17 +620,23 @@ async function handleSubmit(e) {
             body: JSON.stringify(payload)
         });
 
-        let n8nData;
-        try {
-            n8nData = await n8nRes.json();
-        } catch (jsonErr) {
-            console.error('n8n response was not valid JSON:', jsonErr);
-            throw new Error('n8n webhook returned an invalid JSON response');
+        const rawText = await n8nRes.text();
+        let n8nData = null;
+
+        if (rawText && rawText.trim()) {
+            try {
+                n8nData = JSON.parse(rawText);
+            } catch (jsonErr) {
+                console.error('n8n raw response:', rawText);
+                throw new Error(`n8n webhook returned invalid JSON: ${rawText.slice(0, 250)}`);
+            }
+        } else {
+            n8nData = { success: true, status: 'completed', message: 'Webhook returned empty body' };
         }
 
         if (!n8nRes.ok) {
-            const errText = (n8nData && (n8nData.error || n8nData.message)) || await n8nRes.text().catch(() => '');
-            throw new Error(`n8n webhook failed: ${n8nRes.status} — ${errText || 'unknown backend error'}`);
+            const errText = (n8nData && (n8nData.error || n8nData.message)) || rawText || 'unknown backend error';
+            throw new Error(`n8n webhook failed: ${n8nRes.status} — ${errText}`);
         }
 
         const webhookInfo = parseWebhookResult(n8nData);
