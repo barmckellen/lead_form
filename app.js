@@ -363,6 +363,20 @@ function updateDbStatus(state) {
 }
 
 // ============================================
+// UI STATE
+// ============================================
+function toggleProjectCategoryField(show) {
+    const field = document.getElementById('projectCategoryField');
+    if (!field) return;
+
+    field.classList.toggle('hidden', !show);
+    if (!show) {
+        document.getElementById('categorySearch').value = '';
+        document.getElementById('categoryId').value = '';
+    }
+}
+
+// ============================================
 // EVENT LISTENERS
 // ============================================
 function setupEventListeners() {
@@ -373,8 +387,10 @@ function setupEventListeners() {
         if (item.isNew) {
             document.getElementById('newProjectFields').classList.remove('hidden');
             document.getElementById('newProjectName').value = item.name;
+            toggleProjectCategoryField(true);
         } else {
             document.getElementById('newProjectFields').classList.add('hidden');
+            toggleProjectCategoryField(false);
             if (item.category_id) {
                 const cat = categories.find(c => c.id === item.category_id);
                 if (cat) {
@@ -400,6 +416,8 @@ function setupEventListeners() {
         document.getElementById('newProjectFields').classList.remove('hidden');
         document.getElementById('projectSearch').value = '';
         document.getElementById('projectId').value = '';
+        document.getElementById('newProjectName').value = '';
+        toggleProjectCategoryField(true);
         document.getElementById('newProjectName').focus();
     });
 
@@ -414,6 +432,8 @@ function setupEventListeners() {
     });
 
     document.getElementById('researchForm').addEventListener('submit', handleSubmit);
+
+    toggleProjectCategoryField(false);
 }
 
 // ============================================
@@ -499,38 +519,45 @@ async function handleSubmit(e) {
 
         const profession = document.getElementById('profession').value.trim();
         if (!projectName) throw new Error('Project is required');
-
-        // Category is only required when creating a new project
-        const isNewProject = !projectIdVal;
-
-        if (isNewProject && !categoryName && !profession) {
-            throw new Error('Category is required when creating a new project');
-        }
-
         if (!profession) throw new Error('Profession / Niche is required');
 
-        let categoryId = categoryIdVal ? parseInt(categoryIdVal) : null;
+        const professionCategory = await ensureCategory(profession);
 
-        if (!categoryId && categoryName) {
-            const newCat = await ensureCategory(categoryName);
-            categoryId = newCat ? newCat.id : null;
+        const selectedProject = projectIdVal ? projects.find(p => p.id === parseInt(projectIdVal)) : null;
+        const selectedProjectCategoryId = selectedProject ? parseInt(selectedProject.category_id) : null;
 
-            searchQueries = await get('search_queries', {
-                select: 'id,category_id,search_engine,target_platform,country'
-            });
+        if (selectedProject && categoryIdVal) {
+            const chosenCategoryId = parseInt(categoryIdVal);
+            if (chosenCategoryId && chosenCategoryId !== selectedProjectCategoryId) {
+                const currentCategory = categories.find(c => c.id === selectedProjectCategoryId);
+                throw new Error(`Project "${selectedProject.name}" is already in category "${currentCategory ? currentCategory.name : selectedProjectCategoryId}". You cannot change the category of an existing project.`);
+            }
         }
 
-        if (!categoryId && profession) {
-            const professionCategory = await ensureCategory(profession);
-            categoryId = professionCategory ? professionCategory.id : null;
+        const isNewProject = !projectIdVal;
+        let projectCategoryId = selectedProjectCategoryId || null;
+
+        if (isNewProject) {
+            if (categoryName) {
+                const categoryRow = await ensureCategory(categoryName);
+                projectCategoryId = categoryRow ? categoryRow.id : null;
+            } else if (professionCategory) {
+                projectCategoryId = professionCategory.id;
+            }
+
+            if (!projectCategoryId) {
+                throw new Error('Category is required when creating a new project');
+            }
         }
+
+        const queryCategoryId = professionCategory ? professionCategory.id : projectCategoryId;
 
         let projectId = projectIdVal ? parseInt(projectIdVal) : null;
 
         if (!projectId) {
             const newProj = await post('projects', {
                 name: projectName,
-                category_id: categoryId
+                category_id: projectCategoryId
             });
             projectId = newProj[0].id;
             projects.push(newProj[0]);
@@ -542,7 +569,7 @@ async function handleSubmit(e) {
         const targetResults = parseInt(document.getElementById('targetResults').value);
         const searchQuery = buildQuery();
 
-        const combo = checkComboStatus(categoryId, searchEngine, targetPlatform, country);
+        const combo = checkComboStatus(queryCategoryId, searchEngine, targetPlatform, country);
 
         if (combo.status === 'exhausted') {
             showStatus(
@@ -559,7 +586,7 @@ async function handleSubmit(e) {
 
         if (!searchQueryId) {
             const newSq = await post('search_queries', {
-                category_id: categoryId,
+                category_id: queryCategoryId,
                 search_engine: searchEngine,
                 target_platform: targetPlatform,
                 country: country
@@ -571,7 +598,7 @@ async function handleSubmit(e) {
         const payload = {
             search_query_id: searchQueryId,
             project_id: projectId,
-            category_id: categoryId,
+            category_id: queryCategoryId,
             profession: profession,
             target_platform: targetPlatform,
             country: country,
