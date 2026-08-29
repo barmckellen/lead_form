@@ -193,6 +193,29 @@ function checkComboStatus(categoryId, searchEngine, targetPlatform, country) {
 }
 
 // ============================================
+// CATEGORY HELPERS
+// ============================================
+function findCategoryByName(name) {
+    const value = (name || '').trim();
+    if (!value) return null;
+
+    return categories.find(cat => cat.name.toLowerCase() === value.toLowerCase()) || null;
+}
+
+async function ensureCategory(name) {
+    const value = (name || '').trim();
+    if (!value) return null;
+
+    const existing = findCategoryByName(value);
+    if (existing) return existing;
+
+    const created = await post('categories', { name: value });
+    const newCategory = Array.isArray(created) ? created[0] : created;
+    categories.push(newCategory);
+    return newCategory;
+}
+
+// ============================================
 // AUTOCOMPLETE
 // ============================================
 function setupAutocomplete(inputId, dropdownId, items, onSelect, allowCreate = true) {
@@ -270,6 +293,60 @@ function escRe(s) {
 }
 
 // ============================================
+// WEBHOOK RESULT PARSING
+// ============================================
+function parseWebhookResult(data) {
+    if (Array.isArray(data)) {
+        const item = data[0] || {};
+        return {
+            ok: true,
+            payload: item,
+            summary: item
+        };
+    }
+
+    if (data && typeof data === 'object') {
+        const status = (data.status || data.result || data.state || '').toString().toLowerCase();
+        const isSuccess = status === 'success' || status === 'completed' || status === 'ok' || data.success === true;
+
+        return {
+            ok: isSuccess || (!data.error && !data.failed),
+            payload: data,
+            summary: data
+        };
+    }
+
+    return { ok: true, payload: data, summary: null };
+}
+
+function formatWebhookSummary(data) {
+    const parsed = parseWebhookResult(data);
+    const payload = parsed.payload || {};
+
+    const summaryFields = [
+        ['Status', payload.status || payload.result || payload.state || 'success'],
+        ['Current page', payload.current_page ?? payload.currentPage ?? payload.page ?? '—'],
+        ['Running total', payload.running_total ?? payload.runningTotal ?? '—'],
+        ['Emails found', payload.email_found_count ?? payload.emails_found ?? payload.emailFoundCount ?? '—'],
+        ['Target results', payload.target_results ?? payload.targetResults ?? '—'],
+        ['Last page fetched', payload.last_page_fetched ?? payload.lastPageFetched ?? '—'],
+        ['Search query id', payload.search_query_id ?? payload.searchQueryId ?? '—'],
+        ['Category id', payload.category_id ?? payload.categoryId ?? '—'],
+        ['Search engine', payload.search_engine ?? payload.searchEngine ?? '—'],
+        ['Target platform', payload.target_platform ?? payload.targetPlatform ?? '—'],
+        ['Country', payload.country ?? '—'],
+        ['Message', payload.message || payload.error || '—']
+    ];
+
+    const summaryItems = summaryFields
+        .filter(([, value]) => value !== '—')
+        .map(([label, value]) => `<strong>${esc(label)}:</strong> ${esc(String(value))}<br>`)
+        .join('');
+
+    return summaryItems || '<strong>Webhook returned successfully</strong><br>';
+}
+
+// ============================================
 // DB STATUS INDICATOR
 // ============================================
 function updateDbStatus(state) {
@@ -317,7 +394,7 @@ function setupEventListeners() {
     setupAutocomplete('profession', 'professionDropdown', categories, (item) => {
         document.getElementById('profession').value = item.name;
         updateQueryPreview();
-    }, false);
+    }, true);
 
     document.getElementById('btnNewProject').addEventListener('click', () => {
         document.getElementById('newProjectFields').classList.remove('hidden');
@@ -417,7 +494,7 @@ async function handleSubmit(e) {
         // Category is only required when creating a new project
         const isNewProject = !projectIdVal;
 
-        if (isNewProject && !categoryName) {
+        if (isNewProject && !categoryName && !profession) {
             throw new Error('Category is required when creating a new project');
         }
 
@@ -426,13 +503,17 @@ async function handleSubmit(e) {
         let categoryId = categoryIdVal ? parseInt(categoryIdVal) : null;
 
         if (!categoryId && categoryName) {
-            const newCat = await post('categories', { name: categoryName });
-            categoryId = newCat[0].id;
-            categories.push(newCat[0]);
+            const newCat = await ensureCategory(categoryName);
+            categoryId = newCat ? newCat.id : null;
 
             searchQueries = await get('search_queries', {
                 select: 'id,category_id,search_engine,target_platform,country'
             });
+        }
+
+        if (!categoryId && profession) {
+            const professionCategory = await ensureCategory(profession);
+            categoryId = professionCategory ? professionCategory.id : null;
         }
 
         let projectId = projectIdVal ? parseInt(projectIdVal) : null;
@@ -498,24 +579,31 @@ async function handleSubmit(e) {
             body: JSON.stringify(payload)
         });
 
-        if (!n8nRes.ok) {
-            const errText = await n8nRes.text();
+        const n8nData = await n8nRes.json();
+        const webhookInfo = parseWebhookResult(n8nData);
+
+        if (!n8nRes.ok || !webhookInfo.ok) {
+            const errText = (webhookInfo.payload && (webhookInfo.payload.error || webhookInfo.payload.message))
+                || 'unknown backend error';
             throw new Error(`n8n webhook failed: ${n8nRes.status} — ${errText}`);
         }
-
-        const n8nData = await n8nRes.json();
 
         let msg = `Research launched!${resumeMsg}<br>
                    <strong>Query:</strong> <code>${esc(searchQuery)}</code><br>
                    <strong>Target:</strong> ${targetResults} emails<br>
-                   <strong>Starting page:</strong> ${startPage}`;
+                   <strong>Starting page:</strong> ${startPage}<br><br>`;
 
-        if (n8nData.emails_found !== undefined) {
-            msg += `<br><strong>Found:</strong> ${n8nData.emails_found} emails`;
+        msg += '<strong>Backend result:</strong><br>' + formatWebhookSummary(n8nData);
+
+        if (n8nData && Array.isArray(n8nData) && n8nData.length > 0 && n8nData[0]?.warnings?.length > 0) {
+            msg += '<br><strong>Duplicate warnings:</strong><br>';
+            n8nData[0].warnings.forEach(w => {
+                msg += `* ${esc(w.email || w.phone)} — companies: ${esc(w.companies?.join(', ') || 'unknown')}<br>`;
+            });
         }
 
-        if (n8nData.warnings?.length > 0) {
-            msg += `<br><br><strong>Duplicate warnings:</strong><br>`;
+        if (n8nData && n8nData.warnings?.length > 0) {
+            msg += '<br><strong>Duplicate warnings:</strong><br>';
             n8nData.warnings.forEach(w => {
                 msg += `* ${esc(w.email || w.phone)} — companies: ${esc(w.companies?.join(', ') || 'unknown')}<br>`;
             });
@@ -546,8 +634,4 @@ function showStatus(html, type) {
     el.className = `status ${type}`;
     el.classList.remove('hidden');
     el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function hideStatus() {
-    document.getElementById('statusMessage').classList.add('hidden');
 }
