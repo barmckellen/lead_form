@@ -455,6 +455,11 @@ async function handleSubmit(e) {
     e.preventDefault();
 
     const btn = document.getElementById('btnSubmit');
+    if (!btn) {
+        console.error('Submit button not found in the DOM');
+        return;
+    }
+
     const btnText = btn.querySelector('.btn-text');
     const spinner = btn.querySelector('.spinner');
 
@@ -464,15 +469,15 @@ async function handleSubmit(e) {
     hideStatus();
 
     const startTime = Date.now();
+    let timerInterval = null;
 
-    const timerInterval = setInterval(() => {
+    timerInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
         const minutes = Math.floor(elapsed / 60);
         const seconds = elapsed % 60;
 
-        const timeText =
-            `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+        const timeText = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 
         showStatus(
             `Research running...<br>
@@ -482,6 +487,10 @@ async function handleSubmit(e) {
     }, 1000);
 
     try {
+        if (!N8N_WEBHOOK_URL) {
+            throw new Error('n8n webhook URL is not configured');
+        }
+
         const categoryIdVal = document.getElementById('categoryId').value;
         const categoryName = document.getElementById('categorySearch').value.trim();
         const projectIdVal = document.getElementById('projectId').value;
@@ -579,13 +588,24 @@ async function handleSubmit(e) {
             body: JSON.stringify(payload)
         });
 
-        const n8nData = await n8nRes.json();
+        let n8nData;
+        try {
+            n8nData = await n8nRes.json();
+        } catch (jsonErr) {
+            console.error('n8n response was not valid JSON:', jsonErr);
+            throw new Error('n8n webhook returned an invalid JSON response');
+        }
+
+        if (!n8nRes.ok) {
+            const errText = (n8nData && (n8nData.error || n8nData.message)) || await n8nRes.text().catch(() => '');
+            throw new Error(`n8n webhook failed: ${n8nRes.status} — ${errText || 'unknown backend error'}`);
+        }
+
         const webhookInfo = parseWebhookResult(n8nData);
 
-        if (!n8nRes.ok || !webhookInfo.ok) {
-            const errText = (webhookInfo.payload && (webhookInfo.payload.error || webhookInfo.payload.message))
-                || 'unknown backend error';
-            throw new Error(`n8n webhook failed: ${n8nRes.status} — ${errText}`);
+        if (!webhookInfo.ok) {
+            const errText = (webhookInfo.payload && (webhookInfo.payload.error || webhookInfo.payload.message)) || 'backend returned a failed result';
+            throw new Error(`n8n webhook reported failure: ${errText}`);
         }
 
         let msg = `Research launched!${resumeMsg}<br>
@@ -617,11 +637,13 @@ async function handleSubmit(e) {
         console.error('Submit error:', err);
         showStatus(`Error: ${esc(err.message)}`, 'error');
     } finally {
-        clearInterval(timerInterval);
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
 
         btn.disabled = false;
-        btnText.textContent = 'Start Research';
-        spinner.classList.add('hidden');
+        if (btnText) btnText.textContent = 'Start Research';
+        if (spinner) spinner.classList.add('hidden');
     }
 }
 
@@ -630,8 +652,16 @@ async function handleSubmit(e) {
 // ============================================
 function showStatus(html, type) {
     const el = document.getElementById('statusMessage');
+    if (!el) return;
     el.innerHTML = html;
     el.className = `status ${type}`;
     el.classList.remove('hidden');
     el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideStatus() {
+    const el = document.getElementById('statusMessage');
+    if (!el) return;
+    el.classList.add('hidden');
+    el.innerHTML = '';
 }
