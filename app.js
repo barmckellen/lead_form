@@ -490,8 +490,11 @@ async function handleSubmit(e) {
 
     const startTime = Date.now();
     let timerInterval = null;
+    let finished = false;
 
     timerInterval = setInterval(() => {
+        if (finished) return;
+
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
         const minutes = Math.floor(elapsed / 60);
@@ -572,6 +575,8 @@ async function handleSubmit(e) {
         const combo = checkComboStatus(queryCategoryId, searchEngine, targetPlatform, country);
 
         if (combo.status === 'exhausted') {
+            finished = true;
+            if (timerInterval) clearInterval(timerInterval);
             showStatus(
                 `Combo fully used — this exact search was exhausted after page ${combo.lastPage}. Try changing profession, country, target website, or search engine.`,
                 'error'
@@ -656,14 +661,19 @@ async function handleSubmit(e) {
             });
         }
 
+        finished = true;
+        if (timerInterval) clearInterval(timerInterval);
         showStatus(msg, 'success');
 
         await loadSearchQueryRuns();
 
     } catch (err) {
+        finished = true;
+        if (timerInterval) clearInterval(timerInterval);
         console.error('Submit error:', err);
         showStatus(`Error: ${esc(err.message)}`, 'error');
     } finally {
+        finished = true;
         if (timerInterval) {
             clearInterval(timerInterval);
         }
